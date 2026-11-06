@@ -41,6 +41,25 @@ export class PublicTokenController {
     return { name: tenant.name, slug: tenant.slug, branding: tenant.branding, defaultLocale: tenant.defaultLocale };
   }
 
+  /** Open queues for the restaurant's public home page (names and counts only). */
+  @Get('queues')
+  async queues(@Param('slug') slug: string) {
+    return this.inTenant(slug, async (tx, tenantId, today) => {
+      const [queues, waiting, remote, display] = await Promise.all([
+        tx.queue.findMany({ where: { tenantId, isActive: true }, orderBy: { createdAt: 'asc' }, select: { id: true, name: true } }),
+        tx.queueToken.groupBy({ by: ['queueId'], where: { tenantId, serviceDate: new Date(today), status: 'WAITING' }, _count: true }),
+        isFeatureEnabled(tx, tenantId, MODULE_ID, 'remote_queue_joining'),
+        isFeatureEnabled(tx, tenantId, MODULE_ID, 'queue_display'),
+      ]);
+      return queues.map((q) => ({
+        ...q,
+        waitingCount: waiting.find((w) => w.queueId === q.id)?._count ?? 0,
+        canJoin: remote,
+        hasDisplay: display,
+      }));
+    });
+  }
+
   /** TV / queue display: now serving and next up. */
   @Get('queues/:queueId/display')
   async display(@Param('slug') slug: string, @Param('queueId', ParseUUIDPipe) queueId: string) {

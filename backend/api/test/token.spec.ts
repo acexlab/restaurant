@@ -141,6 +141,12 @@ describe('Calling', () => {
 describe('Customer side (public)', () => {
   const base = () => `/api/v1/public/restaurants/${t.a.slug}`;
 
+  it('lists open queues on the public home page', async () => {
+    const q = (await http().get(`${base()}/queues`).expect(200)).body;
+    expect(q).toEqual([{ id: queueId, name: 'Dine-in', waitingCount: 8, canJoin: false, hasDisplay: true }]);
+    await http().get(`/api/v1/public/restaurants/${t.b.slug}/queues`).expect(404); // no Digital Token there
+  });
+
   it('queue display shows token numbers only', async () => {
     const d = (await http().get(`${base()}/queues/${queueId}/display`).expect(200)).body;
     expect(d.nowServing).toHaveLength(1);
