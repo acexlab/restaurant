@@ -1,0 +1,543 @@
+// Xeva Restaurant OS — Core platform schema (Phase 0).
+// Restaurant operational entities (menu, orders, tables, tokens...) are added by their modules in Phase 1.
+//
+// Tenant isolation: every tenant-scoped table carries tenantId and is protected by
+// PostgreSQL Row Level Security (see the rls_policies migration). The API connects as
+// the non-superuser role `xeva_app`; migrations run as `xeva_owner`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("MIGRATION_DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum TenantStatus {
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum EmployeeStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum ModuleInstallationStatus {
+  AVAILABLE
+  PURCHASED
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  DEACTIVATION_PENDING
+  INACTIVE
+  UNINSTALLED
+}
+
+enum IntegrationType {
+  AUTOMATIC
+  CONFIGURABLE
+  EXTERNAL
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum OutboxStatus {
+  PENDING
+  DISPATCHED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  DEAD_LETTER
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  GRACE
+  SUSPENDED
+  CANCELLED
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum ActorType {
+  EMPLOYEE
+  PLATFORM_ADMIN
+  CUSTOMER
+  SYSTEM
+}
+
+// ─────────────────────── Platform (not tenant-scoped) ───────────────────────
+
+model Tenant {
+  id               String       @id @default(uuid()) @db.Uuid
+  slug             String       @unique
+  name             String
+  legalName        String?
+  status           TenantStatus @default(ONBOARDING)
+  timezone         String       @default("Asia/Kolkata")
+  currency         String       @default("INR")
+  defaultLocale    String       @default("en")
+  supportedLocales String[]     @default(["en", "ml"])
+  /// Restaurant-specific branding for the customer portal (logo, colours, domain).
+  branding         Json         @default("{}")
+  gstin            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  branches      Branch[]
+  employees     Employee[]
+  roles         Role[]
+  installations ModuleInstallation[]
+  subscriptions Subscription[]
+
+  @@map("tenants")
+}
+
+model PlatformUser {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  phone           String?   @unique
+  passwordHash    String
+  fullName        String
+  /// Xeva internal staff. Cross-tenant access still requires an audited SupportAccessGrant.
+  isPlatformAdmin Boolean   @default(false)
+  mfaEnabled      Boolean   @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  employments Employee[]
+
+  @@map("platform_users")
+}
+
+model Permission {
+  key         String  @id
+  description String?
+  moduleId    String?
+
+  @@map("permissions")
+}
+
+model ProductModule {
+  /// e.g. "digital_token"
+  id           String   @id
+  name         String
+  description  String
+  version      String
+  category     String
+  availability String
+  /// Full ModuleDefinition from @xeva/contracts (features, events, permissions...).
+  definition   Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("product_modules")
+}
+
+model SubscriptionPlan {
+  id                    String          @id @default(uuid()) @db.Uuid
+  code                  String          @unique
+  name                  String
+  interval              BillingInterval
+  /// Amounts in paise (INR × 100) to avoid floating point.
+  priceInPaise          Int
+  perBranchPriceInPaise Int             @default(0)
+  moduleIds             String[]
+  trialDays             Int             @default(14)
+  isActive              Boolean         @default(true)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+// ─────────────────────────── Tenant-scoped (RLS) ───────────────────────────
+
+model Branch {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @db.Uuid
+  code      String
+  name      String
+  address   String?
+  city      String?
+  state     String    @default("Kerala")
+  phone     String?
+  timezone  String    @default("Asia/Kolkata")
+  gstin     String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("branches")
+}
+
+model Employee {
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @db.Uuid
+  platformUserId String         @db.Uuid
+  displayName    String
+  status         EmployeeStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id])
+  user   PlatformUser   @relation(fields: [platformUserId], references: [id])
+  roles  EmployeeRole[]
+
+  @@unique([tenantId, platformUserId])
+  @@index([platformUserId])
+  @@map("employees")
+}
+
+model Role {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  key       String
+  name      String
+  /// true for roles copied from DEFAULT_ROLES; custom roles are false.
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  permissions RolePermission[]
+  employees   EmployeeRole[]
+
+  @@unique([tenantId, key])
+  @@map("roles")
+}
+
+model RolePermission {
+  tenantId      String @db.Uuid
+  roleId        String @db.Uuid
+  /// A Permission key, or "*" for the Owner wildcard.
+  permissionKey String
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+  @@index([tenantId])
+  @@map("role_permissions")
+}
+
+model EmployeeRole {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @db.Uuid
+  employeeId String  @db.Uuid
+  roleId     String  @db.Uuid
+  /// null = role applies to every branch of the tenant.
+  branchId   String? @db.Uuid
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role     Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, roleId, branchId])
+  @@index([tenantId])
+  @@map("employee_roles")
+}
+
+model Customer {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @db.Uuid
+  phone              String?
+  email              String?
+  fullName           String?
+  /// Promotional consent is separate from transactional notifications (spec 4.1, 12).
+  marketingConsent   Boolean   @default(false)
+  marketingConsentAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  @@unique([tenantId, phone])
+  @@unique([tenantId, email])
+  @@map("customers")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid()) @db.Uuid
+  tenantId           String             @db.Uuid
+  planId             String             @db.Uuid
+  status             SubscriptionStatus @default(TRIAL)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  graceEndsAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id])
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([tenantId])
+  @@map("subscriptions")
+}
+
+model ModuleInstallation {
+  id            String                   @id @default(uuid()) @db.Uuid
+  tenantId      String                   @db.Uuid
+  moduleId      String
+  status        ModuleInstallationStatus @default(PURCHASED)
+  version       String
+  activatedAt   DateTime?
+  deactivatedAt DateTime?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, moduleId])
+  @@map("module_installations")
+}
+
+model ModuleConfiguration {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  moduleId  String
+  config    Json     @default("{}")
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, moduleId])
+  @@map("module_configurations")
+}
+
+/// Feature flags are separate from module activation (spec 6.3).
+model FeatureFlag {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  moduleId    String
+  featureKey  String
+  enabled     Boolean
+  updatedById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, moduleId, featureKey])
+  @@map("feature_flags")
+}
+
+model Integration {
+  id                    String            @id @default(uuid()) @db.Uuid
+  tenantId              String            @db.Uuid
+  sourceModule          String
+  destinationModule     String
+  type                  IntegrationType   @default(AUTOMATIC)
+  config                Json              @default("{}")
+  status                IntegrationStatus @default(ACTIVE)
+  createdById           String?           @db.Uuid
+  lastSuccessfulEventAt DateTime?
+  errorCount            Int               @default(0)
+  version               Int               @default(1)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  permissions IntegrationPermission[]
+
+  @@unique([tenantId, sourceModule, destinationModule])
+  @@map("integrations")
+}
+
+/// If an integration has permission rows, only allowed events flow through it.
+/// With no rows, every event the source publishes and the destination consumes flows.
+model IntegrationPermission {
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @db.Uuid
+  integrationId String  @db.Uuid
+  eventName     String
+  allowed       Boolean @default(true)
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, eventName])
+  @@map("integration_permissions")
+}
+
+/// Transactional outbox (spec 7.5). Written in the same DB transaction as the business change.
+model OutboxEvent {
+  /// The event ID in the envelope.
+  id            String       @id @default(uuid()) @db.Uuid
+  tenantId      String       @db.Uuid
+  branchId      String?      @db.Uuid
+  eventName     String
+  schemaVersion Int          @default(1)
+  sourceModule  String
+  entityId      String
+  correlationId String
+  payload       Json
+  occurredAt    DateTime     @default(now())
+  status        OutboxStatus @default(PENDING)
+  dispatchedAt  DateTime?
+
+  deliveries EventDelivery[]
+
+  @@index([status, occurredAt])
+  @@index([tenantId, occurredAt])
+  @@map("outbox_events")
+}
+
+/// One row per (event, consumer). Its unique key is the consumer-side duplicate protection.
+model EventDelivery {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @db.Uuid
+  eventId       String         @db.Uuid
+  consumer      String
+  integrationId String?        @db.Uuid
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime       @default(now())
+  lastError     String?
+  deliveredAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  event OutboxEvent @relation(fields: [eventId], references: [id])
+
+  @@unique([eventId, consumer])
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, status])
+  @@map("event_deliveries")
+}
+
+/// Stored responses for requests sent with an Idempotency-Key header (spec 10).
+model IdempotencyKey {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  key            String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, key])
+  @@map("idempotency_keys")
+}
+
+/// Immutable (UPDATE/DELETE blocked by trigger). tenantId is null for platform-level actions.
+model AuditLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String?   @db.Uuid
+  branchId      String?   @db.Uuid
+  actorType     ActorType
+  actorUserId   String?   @db.Uuid
+  action        String
+  entityType    String
+  entityId      String?
+  before        Json?
+  after         Json?
+  metadata      Json?
+  correlationId String?
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+/// Time-limited, audited Xeva support access to a tenant (spec 4.4).
+model SupportAccessGrant {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  platformUserId String    @db.Uuid
+  reason         String
+  grantedById    String?   @db.Uuid
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("support_access_grants")
+}
+
+// ───────────────────── M01 Digital Token (module: digital_token) ─────────────────────
+
+enum TokenStatus {
+  WAITING
+  CALLED
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum TokenSource {
+  WALK_IN
+  REMOTE
+}
+
+model Queue {
+  id                    String    @id @default(uuid()) @db.Uuid
+  tenantId              String    @db.Uuid
+  branchId              String?   @db.Uuid
+  name                  String
+  /// Token label prefix, e.g. "A" gives A-001.
+  prefix                String    @default("A")
+  averageServiceMinutes Int       @default(15)
+  isActive              Boolean   @default(true)
+  /// Daily counter; reset when counterDate changes (restaurant's local date).
+  lastNumber            Int       @default(0)
+  counterDate           DateTime? @db.Date
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  tokens QueueToken[]
+
+  @@index([tenantId])
+  @@map("queues")
+}
+
+model QueueToken {
+  id            String      @id @default(uuid()) @db.Uuid
+  tenantId      String      @db.Uuid
+  queueId       String      @db.Uuid
+  serviceDate   DateTime    @db.Date
+  number        Int
+  label         String
+  status        TokenStatus @default(WAITING)
+  priority      Boolean     @default(false)
+  source        TokenSource @default(WALK_IN)
+  customerName  String?
+  customerPhone String?
+  partySize     Int?
+  calledCount   Int         @default(0)
+  issuedAt      DateTime    @default(now())
+  calledAt      DateTime?
+  completedAt   DateTime?
+  skippedAt     DateTime?
+  cancelledAt   DateTime?
+
+  queue Queue @relation(fields: [queueId], references: [id])
+
+  @@unique([queueId, serviceDate, number])
+  @@index([queueId, serviceDate, status])
+  @@index([tenantId])
+  @@map("queue_tokens")
+}

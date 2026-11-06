@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: xeva-postgres
+    environment:
+      POSTGRES_USER: xeva_owner
+      POSTGRES_PASSWORD: xeva_owner_dev
+      POSTGRES_DB: xeva
+    ports:
+      - "5433:5432"
+    volumes:
+      - xeva-pg:/var/lib/postgresql/data
+      # Creates the non-superuser application role so Row Level Security is enforced.
+      - ./database/policies/00-app-role.sql:/docker-entrypoint-initdb.d/00-app-role.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xeva_owner -d xeva"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  xeva-pg:

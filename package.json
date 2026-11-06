@@ -1,0 +1,20 @@
+{
+  "name": "xeva-restaurant-os",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "dev": "turbo run dev --filter=@xeva/api",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @xeva/api db:migrate",
+    "db:seed": "pnpm --filter @xeva/api db:seed",
+    "db:reset": "pnpm --filter @xeva/api db:reset"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "~5.6.3"
+  }
+}

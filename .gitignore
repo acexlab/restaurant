@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+.env
+*.log
+graphify-out/
+.next/
+*.tsbuildinfo
+next-env.d.ts
