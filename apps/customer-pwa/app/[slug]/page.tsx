@@ -57,6 +57,17 @@ export default function RestaurantHome() {
           </div>
         ))}
       </section>
+
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Coming soon</h2>
+        <ul className="mt-2 grid grid-cols-2 gap-2">
+          {[['reserve', 'Book a table'], ['account', 'My rewards'], ['feedback', 'Rate your visit'], ['delivery', 'Track a delivery']].map(([k, l]) => (
+            <li key={k}>
+              <Link href={`/${slug}/preview/${k}`} className="flex min-h-11 items-center justify-center rounded-md border border-dashed border-stone-300 px-2 text-center text-sm text-stone-600 hover:bg-white">{l}</Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   );
 }

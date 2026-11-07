@@ -12,6 +12,7 @@ const NAV = [
   { href: '/plans', label: 'Subscription Plans' },
   { href: '/integrations', label: 'Integration Monitoring' },
   { href: '/audit', label: 'Audit Logs' },
+  { href: '/preview', label: 'Roadmap previews' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {

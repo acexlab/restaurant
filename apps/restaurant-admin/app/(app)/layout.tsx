@@ -23,7 +23,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <AppShell
           product="Xeva"
           title={t.tenant.name}
-          nav={t.nav.map((n) => ({ href: n.path, label: n.label }))}
+          nav={[
+            ...t.nav.map((n) => ({ href: n.path, label: n.label })),
+            // Prototypes of Phase 2–5 products, for owners/admins evaluating the roadmap.
+            ...(t.can('modules') ? [{ href: '/preview', label: 'Roadmap previews' }] : []),
+          ]}
           currentPath={pathname}
           Link={Link}
           user={me.email}
