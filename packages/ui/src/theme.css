@@ -1,0 +1,67 @@
+/*
+ * Xeva design tokens, shared by every app (imported from each app's globals.css).
+ * Type: Bricolage Grotesque (headings) · Figtree (text), loaded by next/font
+ * in each app's root layout as --font-head / --font-body.
+ * The `stone` scale is redefined as warm neutrals, so every screen picks up the palette.
+ * Accent stays per restaurant: --brand (set from its branding) and --brand-strong.
+ */
+@theme {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, "Noto Sans Malayalam", sans-serif;
+  --font-display: var(--font-head), var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-code), ui-monospace, "SFMono-Regular", monospace;
+
+  --color-stone-50: #faf7f2;
+  --color-stone-100: #f2ede5;
+  --color-stone-200: #e6dfd4;
+  --color-stone-300: #d3c8b9;
+  --color-stone-400: #a59889;
+  --color-stone-500: #7a6e61;
+  --color-stone-600: #5d5349;
+  --color-stone-700: #453c34;
+  --color-stone-800: #2e2823;
+  --color-stone-900: #1e1915;
+  --color-stone-950: #13100d;
+
+  --shadow-card: 0 1px 2px rgb(30 25 21 / 0.04), 0 1px 1px rgb(30 25 21 / 0.03);
+  --shadow-lift: 0 6px 18px -6px rgb(30 25 21 / 0.18), 0 2px 4px rgb(30 25 21 / 0.05);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--color-stone-50);
+  color: var(--color-stone-900);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+/* Money, counts and times line up (same face; monospace read as code on a menu). */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--brand) 22%, white);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

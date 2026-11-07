@@ -33,7 +33,6 @@ export default function RestaurantHome() {
       </Link>
 
       <section className="mt-6 space-y-3">
-        {queues.data?.length === 0 && <p className="text-sm text-stone-500">Nothing to do online here yet. Please speak to our staff.</p>}
         {queues.data?.map((q) => (
           <div key={q.id} className="rounded-xl border border-stone-200 bg-white p-4">
             <div className="flex items-baseline justify-between gap-3">

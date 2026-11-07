@@ -15,12 +15,13 @@ export function Button({
     <button
       {...props}
       className={cx(
-        'inline-flex min-h-9 items-center justify-center gap-2 rounded-md px-3.5 text-sm font-medium transition-colors',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:cursor-not-allowed disabled:opacity-50',
-        variant === 'primary' && 'bg-[var(--brand)] text-white hover:bg-[var(--brand-strong)]',
-        variant === 'secondary' && 'border border-stone-300 bg-white text-stone-800 hover:bg-stone-50',
-        variant === 'danger' && 'border border-red-200 bg-white text-red-700 hover:bg-red-50',
-        variant === 'ghost' && 'text-stone-600 hover:bg-stone-100 hover:text-stone-900',
+        'inline-flex min-h-9 select-none items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium',
+        'transition-[background-color,box-shadow,transform,color] duration-150 ease-out active:translate-y-px active:duration-75',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:pointer-events-none disabled:opacity-50',
+        variant === 'primary' && 'bg-[var(--brand)] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(30_25_21/0.2)] hover:-translate-y-px hover:bg-[var(--brand-strong)] hover:shadow-lift',
+        variant === 'secondary' && 'border border-stone-300 bg-white text-stone-800 shadow-card hover:-translate-y-px hover:border-stone-400 hover:shadow-lift',
+        variant === 'danger' && 'border border-red-200 bg-white text-red-700 hover:-translate-y-px hover:bg-red-50',
+        variant === 'ghost' && 'text-stone-600 hover:bg-stone-200/60 hover:text-stone-900',
         className,
       )}
     />
@@ -29,10 +30,10 @@ export function Button({
 
 export function Card({ title, actions, children, className }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cx('rounded-lg border border-stone-200 bg-white', className)}>
+    <section className={cx('rounded-xl border border-stone-200/80 bg-white shadow-card transition-[transform,box-shadow] duration-200 [a:hover>&]:-translate-y-0.5 [a:hover>&]:shadow-lift', className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 border-b border-stone-100 px-5 py-3">
-          <h2 className="text-sm font-semibold text-stone-900">{title}</h2>
+        <header className="flex items-center justify-between gap-3 px-5 pb-1 pt-4">
+          <h2 className="font-display text-[15px] font-semibold text-stone-900">{title}</h2>
           {actions}
         </header>
       )}
@@ -43,10 +44,10 @@ export function Card({ title, actions, children, className }: { title?: ReactNod
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-stone-900">{title}</h1>
-        {description && <p className="mt-1 max-w-2xl text-sm text-stone-500">{description}</p>}
+        <h1 className="font-display text-[28px] font-semibold leading-tight tracking-[-0.025em] text-stone-900">{title}</h1>
+        {description && <p className="mt-1.5 max-w-2xl text-[15px] text-stone-500">{description}</p>}
       </div>
       {actions && <div className="flex gap-2">{actions}</div>}
     </div>
@@ -54,11 +55,11 @@ export function PageHeader({ title, description, actions }: { title: string; des
 }
 
 const TONES: Record<string, string> = {
-  green: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  amber: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-  red: 'bg-red-50 text-red-700 ring-red-600/20',
-  blue: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-  gray: 'bg-stone-100 text-stone-600 ring-stone-500/20',
+  green: 'bg-emerald-50 text-emerald-800 ring-emerald-600/15 before:bg-emerald-500',
+  amber: 'bg-amber-50 text-amber-900 ring-amber-600/15 before:bg-amber-500',
+  red: 'bg-red-50 text-red-800 ring-red-600/15 before:bg-red-500',
+  blue: 'bg-sky-50 text-sky-800 ring-sky-600/15 before:bg-sky-500',
+  gray: 'bg-stone-100 text-stone-600 ring-stone-500/15 before:bg-stone-400',
 };
 
 /** Maps the platform's status enums to a colour. */
@@ -73,7 +74,7 @@ export function statusTone(status: string): keyof typeof TONES {
 export function Badge({ children, tone }: { children: ReactNode; tone?: keyof typeof TONES }) {
   const t = tone ?? (typeof children === 'string' ? statusTone(children) : 'gray');
   return (
-    <span className={cx('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset', TONES[t])}>
+    <span className={cx("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium capitalize whitespace-nowrap ring-1 ring-inset before:h-1.5 before:w-1.5 before:rounded-full before:content-['']", TONES[t])}>
       {typeof children === 'string' ? children.replace(/_/g, ' ').toLowerCase() : children}
     </span>
   );
@@ -90,7 +91,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 const inputClass =
-  'block w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20';
+  'block min-h-10 w-full rounded-lg border border-stone-300/90 bg-white px-3 py-2 text-[15px] text-stone-900 shadow-[inset_0_1px_1px_rgb(30_25_21/0.03)] transition-[border-color,box-shadow] placeholder:text-stone-400 hover:border-stone-400 focus:border-[var(--brand)] focus:outline-none focus:ring-4 focus:ring-[var(--brand)]/12';
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(inputClass, props.className)} />;
@@ -149,7 +150,7 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
     <div className="-mx-5 overflow-x-auto">
       <table className="min-w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-stone-100 text-xs font-medium uppercase tracking-wide text-stone-500">
+          <tr className="border-b border-stone-200 text-[11px] font-semibold uppercase tracking-[0.06em] text-stone-500">
             {head.map((h) => (
               <th key={h} className="px-5 py-2 font-medium">
                 {h}
@@ -201,10 +202,13 @@ export function LoginForm({ title, subtitle, onSuccess }: { title: string; subti
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
-        <h1 className="text-lg font-semibold text-stone-900">{title}</h1>
-        <p className="mb-5 text-sm text-stone-500">{subtitle}</p>
+    <main className="flex min-h-screen items-center justify-center bg-stone-100 px-4">
+      <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-stone-200/80 bg-white p-7 shadow-lift">
+        <p className="mb-6 flex items-center gap-2 font-display text-lg font-semibold tracking-tight text-stone-900">
+          <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)] text-sm text-white">X</span>Xeva
+        </p>
+        <h1 className="font-display text-2xl font-semibold tracking-[-0.02em] text-stone-900">{title}</h1>
+        <p className="mb-6 mt-1 text-[15px] text-stone-500">{subtitle}</p>
         <ErrorBanner error={error} />
         <div className="space-y-4">
           <Field label="Email">
