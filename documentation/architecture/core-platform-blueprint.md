@@ -22,6 +22,7 @@ in this repository today. Section numbers in brackets refer to the master spec.
 | Restaurant Admin portal (Deliverable 2) | Done: overview, modules + feature flags, Integration Centre, team, branches, settings/branding, billing, audit | `apps/restaurant-admin` |
 | Xeva Super Admin portal (Deliverable 2) | Done: overview, onboarding, restaurant detail (plan, status, support access), catalogue, plans, integration monitoring, audit | `apps/xeva-super-admin` |
 | Team, subscription and platform APIs | Done | `src/core/employees`, `src/core/platform` |
+| Phase 1 MVP: QR Menu, Online Ordering, Kitchen Display, Waiter, POS & Billing | Done: shared menu/tables/orders services, server-side pricing with GST, idempotent QR orders, order state machine + history, kitchen ↔ order events, service requests, split payments, GST invoices (FY numbering), discounts/refunds (audited), closing report. Shortcuts: no payment gateway, polling instead of WebSockets | `src/core/{menu,tables,orders}`, `src/modules/{kitchen,waiter,pos,online-ordering}`, admin `_screens/`, PWA `t/[qrToken]` |
 | M01 Digital Token (Deliverable 3) | Done: queues, walk-in + remote tokens, priority, call/recall/skip, ETA, TV display, tracking, daily report, `token.*` events. Gated by `@ForModule` + feature flags | `src/modules/digital-token`, `apps/customer-pwa` |
 | CI/CD (GitHub Actions) | **Not started** | Phase 0 remainder |
 | Customer OTP login, OIDC provider, MFA | **Not started** | Phase 1–2 |
