@@ -1,8 +1,8 @@
 'use client';
 
-import { Button, ErrorBanner, formatPaise, Input, useAction, useLoad } from '@xeva/ui';
+import { Button, ErrorBanner, formatPaise, Input, Sheet, useAction, useLoad } from '@xeva/ui';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { publicApi, useRestaurant } from './restaurant';
 
 interface Option { id: string; name: string; pricePaise: number }
@@ -41,6 +41,11 @@ export function MenuView({ slug, qrToken }: { slug: string; qrToken?: string }) 
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [toast, setToast] = useState<string | null>(null);
 
+  // Keep the last item on screen while its sheet slides away.
+  const lastPick = useRef(picking);
+  if (picking) lastPick.current = picking;
+  const shown = picking ?? lastPick.current;
+
   const canOrder = !!data.data?.table?.canOrder;
   const count = cart.reduce((s, l) => s + l.quantity, 0);
   const total = useMemo(() => cart.reduce((s, l) => s + unit(l) * l.quantity, 0), [cart]);
@@ -78,7 +83,7 @@ export function MenuView({ slug, qrToken }: { slug: string; qrToken?: string }) 
 
   return (
     <main style={style} className="mx-auto min-h-screen max-w-md pb-28">
-      <header className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
+      <header className="material edge-fade sticky top-0 z-10 px-4 py-3">
         <h1 className="text-lg font-semibold text-stone-900">{restaurant?.name ?? ' '}</h1>
         <p className="text-sm text-stone-500">{data.data?.table ? `Table ${data.data.table.tableCode}` : 'Menu'}{data.data?.table && !canOrder ? ' · please order with our staff' : ''}</p>
         {data.data?.menu && data.data.menu.length > 1 && (
@@ -123,10 +128,12 @@ export function MenuView({ slug, qrToken }: { slug: string; qrToken?: string }) 
         </div>
       )}
 
-      {picking && (
-        <div role="dialog" aria-modal="true" aria-label={picking.item.name} className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={() => setPicking(null)}>
-          <div className="mx-auto w-full max-w-md rounded-t-2xl bg-white p-5 pb-8" onClick={(e) => e.stopPropagation()}>
-            <p className="text-lg font-semibold">{picking.item.name}</p>
+      <Sheet open={!!picking} onClose={() => setPicking(null)} label={shown?.item.name ?? 'Item options'}>
+        {shown && (() => {
+          const picking = shown;
+          return (
+          <div>
+            <p className="font-display text-xl font-semibold">{picking.item.name}</p>
             {picking.item.variants.length > 0 && (
               <fieldset className="mt-3 space-y-2">
                 <legend className="text-sm text-stone-500">Choose one</legend>
@@ -155,13 +162,13 @@ export function MenuView({ slug, qrToken }: { slug: string; qrToken?: string }) 
             )}
             <Button className="mt-4 min-h-12 w-full text-base" onClick={() => add(picking.item, picking.variant, picking.addons)}>Add to order</Button>
           </div>
-        </div>
-      )}
+          );
+        })()}
+      </Sheet>
 
-      {review && (
-        <div role="dialog" aria-modal="true" aria-label="Your order" className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={() => setReview(false)}>
-          <div className="mx-auto max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 pb-8" onClick={(e) => e.stopPropagation()}>
-            <p className="text-lg font-semibold">Your order</p>
+      <Sheet open={review} onClose={() => setReview(false)} label="Your order">
+          <div>
+            <p className="font-display text-xl font-semibold">Your order</p>
             <ul className="mt-3 divide-y divide-stone-100">
               {cart.map((l) => (
                 <li key={l.key} className="flex items-center justify-between gap-3 py-2.5">
@@ -186,8 +193,7 @@ export function MenuView({ slug, qrToken }: { slug: string; qrToken?: string }) 
             <p className="text-xs text-stone-500">GST is added on your bill.</p>
             <Button className="mt-4 min-h-12 w-full text-base" disabled={action.busy || cart.length === 0} onClick={place}>{action.busy ? 'Sending…' : 'Send order to kitchen'}</Button>
           </div>
-        </div>
-      )}
+      </Sheet>
 
       {count > 0 && !review && (
         <div className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-md p-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>

@@ -32,17 +32,66 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+/* rem, not px: the layout scales with the user's own text-size setting. */
 body {
   background: var(--color-stone-50);
   color: var(--color-stone-900);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.5;
+  font-optical-sizing: auto;
 }
 
+/* Tracking and leading by size: big type tightens, small type opens up. */
 h1, h2, h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.015em;
+  font-optical-sizing: auto;
+}
+h1 { line-height: 1.1; letter-spacing: -0.025em; }
+h2 { line-height: 1.25; letter-spacing: -0.012em; }
+h3 { line-height: 1.3; letter-spacing: -0.006em; }
+.text-xs, .text-\[11px\] { letter-spacing: 0.01em; }
+
+/*
+ * Material: a translucent layer that content scrolls under (navigation, floating bars).
+ * Structural chrome uses the heavier tint; a soft fade replaces the hard divider at its edge.
+ */
+@utility material {
+  background: color-mix(in srgb, var(--color-stone-50) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--color-stone-50);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (prefers-contrast: more) {
+    background: white;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@utility material-heavy {
+  background: color-mix(in srgb, var(--color-stone-100) 80%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--color-stone-100);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (prefers-contrast: more) {
+    background: white;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@utility edge-fade {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.5) inset, 0 8px 16px -12px rgb(30 25 21 / 0.18);
+}
+
+@media (prefers-contrast: more) {
+  body { color: black; }
 }
 
 /* Money, counts and times line up (same face; monospace read as code on a menu). */

@@ -44,7 +44,9 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-stone-50 md:flex">
-      <aside className="border-b border-stone-200/80 bg-stone-100/70 md:sticky md:top-0 md:flex md:h-screen md:w-64 md:shrink-0 md:flex-col md:border-r md:border-b-0">
+      {/* Phones: a light material bar that content scrolls under. Desktop: heavier material for the structural sidebar. */}
+      <aside className="material edge-fade sticky top-0 z-20 border-b border-stone-200/60 md:material-heavy md:flex md:h-screen md:w-64 md:shrink-0 md:flex-col md:border-r md:border-b-0 md:shadow-none">
+
         <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-5 md:pb-5 md:pt-6">
           <div className="flex min-w-0 items-center gap-3">
             <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] font-display text-base font-semibold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.2)]">

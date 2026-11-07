@@ -16,7 +16,8 @@ export function Button({
       {...props}
       className={cx(
         'inline-flex min-h-9 select-none items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium',
-        'transition-[background-color,box-shadow,transform,color] duration-150 ease-out active:translate-y-px active:duration-75',
+        // Feedback on pointer-down (:active), not on release.
+        'transition-[background-color,box-shadow,translate,scale,color] duration-150 ease-out active:scale-[0.97] active:duration-100',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:pointer-events-none disabled:opacity-50',
         variant === 'primary' && 'bg-[var(--brand)] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_1px_2px_rgb(30_25_21/0.2)] hover:-translate-y-px hover:bg-[var(--brand-strong)] hover:shadow-lift',
         variant === 'secondary' && 'border border-stone-300 bg-white text-stone-800 shadow-card hover:-translate-y-px hover:border-stone-400 hover:shadow-lift',
