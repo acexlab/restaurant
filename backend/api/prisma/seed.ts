@@ -9,6 +9,7 @@
  */
 import { PrismaClient, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { ALL_PERMISSIONS, findModule, MODULE_CATALOG } from '@xeva/contracts';
@@ -116,6 +117,63 @@ async function seedRestaurant(opts: {
   });
 }
 
+/** Restaurant A gets the full Phase 1 set: menu, tables, waiter + POS, kitchen connections. Safe to re-run. */
+async function seedDemoOperations(tenantId: string) {
+  for (const moduleId of ['qr_menu', 'online_ordering', 'kitchen_display', 'waiter_management', 'pos_billing']) {
+    const def = findModule(moduleId)!;
+    await prisma.moduleInstallation.upsert({
+      where: { tenantId_moduleId: { tenantId, moduleId } },
+      update: { status: 'ACTIVE' },
+      create: { tenantId, moduleId, status: 'ACTIVE', version: def.version, activatedAt: new Date() },
+    });
+    await prisma.featureFlag.createMany({ data: def.features.map((f) => ({ tenantId, moduleId, featureKey: f.key, enabled: f.defaultEnabled })), skipDuplicates: true });
+  }
+  for (const src of ['online_ordering', 'pos_billing', 'waiter_management']) {
+    await prisma.integration.upsert({
+      where: { tenantId_sourceModule_destinationModule: { tenantId, sourceModule: src, destinationModule: 'kitchen_display' } },
+      update: { status: 'ACTIVE' },
+      create: { tenantId, sourceModule: src, destinationModule: 'kitchen_display' },
+    });
+  }
+  if ((await prisma.menuCategory.count({ where: { tenantId } })) > 0) return;
+
+  const menu: { name: string; nameMl: string; items: { name: string; nameMl?: string; price: number; veg: boolean; desc?: string; variants?: [string, number][]; addons?: [string, number][] }[] }[] = [
+    { name: 'Starters', nameMl: 'സ്റ്റാർട്ടറുകൾ', items: [
+      { name: 'Kozhi Porichathu', nameMl: 'കോഴി പൊരിച്ചത്', price: 220, veg: false, desc: 'Kerala-style fried chicken' },
+      { name: 'Banana Fritters', nameMl: 'പഴംപൊരി', price: 60, veg: true },
+    ] },
+    { name: 'Biryani', nameMl: 'ബിരിയാണി', items: [
+      { name: 'Malabar Chicken Biryani', price: 260, veg: false, variants: [['Half', 180], ['Full', 260]], addons: [['Extra raita', 30]] },
+      { name: 'Vegetable Biryani', price: 190, veg: true, addons: [['Extra raita', 30]] },
+    ] },
+    { name: 'Breads & Curries', nameMl: 'കറികൾ', items: [
+      { name: 'Malabar Parotta', nameMl: 'പൊറോട്ട', price: 25, veg: true },
+      { name: 'Beef Ularthiyathu', nameMl: 'ബീഫ് ഉലർത്തിയത്', price: 240, veg: false },
+      { name: 'Kadala Curry', nameMl: 'കടല കറി', price: 120, veg: true },
+    ] },
+    { name: 'Drinks & Desserts', nameMl: 'പാനീയങ്ങൾ', items: [
+      { name: 'Fresh Lime Soda', price: 60, veg: true, addons: [['Extra mint', 10]] },
+      { name: 'Sulaimani', nameMl: 'സുലൈമാനി', price: 30, veg: true },
+      { name: 'Ada Pradhaman', nameMl: 'അട പ്രഥമൻ', price: 90, veg: true },
+    ] },
+  ];
+  for (const [ci, c] of menu.entries()) {
+    const cat = await prisma.menuCategory.create({ data: { tenantId, name: c.name, nameMl: c.nameMl, sortOrder: ci } });
+    for (const [ii, i] of c.items.entries()) {
+      await prisma.menuItem.create({
+        data: {
+          tenantId, categoryId: cat.id, name: i.name, nameMl: i.nameMl, description: i.desc, pricePaise: i.price * 100, isVeg: i.veg, sortOrder: ii,
+          variants: { create: (i.variants ?? []).map(([name, p]) => ({ tenantId, name, pricePaise: p * 100 })) },
+          addons: { create: (i.addons ?? []).map(([name, p]) => ({ tenantId, name, pricePaise: p * 100 })) },
+        },
+      });
+    }
+  }
+  for (let n = 1; n <= 6; n++) {
+    await prisma.diningTable.create({ data: { tenantId, code: `T${n}`, seats: n <= 4 ? 4 : 6, qrToken: randomBytes(12).toString('base64url') } });
+  }
+}
+
 async function main() {
   await seedCatalog();
 
@@ -161,6 +219,7 @@ async function main() {
     },
   });
 
+  await seedDemoOperations(a.id);
   console.log(`Seeded tenants:\n  ${a.name} (${a.id})\n  ${b.name} (${b.id})`);
 }
 

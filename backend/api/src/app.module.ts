@@ -22,6 +22,14 @@ import { PrismaModule } from './prisma/prisma.module';
 import { PublicTokenController } from './modules/digital-token/public.controller';
 import { TokenController } from './modules/digital-token/token.controller';
 import { TokenService } from './modules/digital-token/token.service';
+import { MenuController } from './core/menu/menu.controller';
+import { OrdersController } from './core/orders/orders.controller';
+import { OrdersService } from './core/orders/orders.service';
+import { TablesController } from './core/tables/tables.controller';
+import { KitchenController, KitchenService } from './modules/kitchen/kitchen';
+import { PublicOrderController } from './modules/online-ordering/public-order';
+import { PosController } from './modules/pos/pos';
+import { WaiterController } from './modules/waiter/waiter';
 
 /**
  * Modular monolith (spec 3): one deployable, with core services, the module registry and the
@@ -42,9 +50,16 @@ import { TokenService } from './modules/digital-token/token.service';
     AuditController,
     EmployeesController,
     PlatformController,
+    MenuController,
+    TablesController,
+    OrdersController,
     // Product modules
     TokenController,
     PublicTokenController,
+    KitchenController,
+    WaiterController,
+    PosController,
+    PublicOrderController,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -55,6 +70,8 @@ import { TokenService } from './modules/digital-token/token.service';
     IntegrationsService,
     ModuleRegistryService,
     TokenService,
+    OrdersService,
+    KitchenService,
   ],
 })
 export class AppModule implements NestModule {

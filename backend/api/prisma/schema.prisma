@@ -541,3 +541,251 @@ model QueueToken {
   @@index([tenantId])
   @@map("queue_tokens")
 }
+
+// ───────────────────── Phase 1: menu, tables, orders, kitchen, payments ─────────────────────
+
+/// Gap-free sequences per tenant: daily order numbers, financial-year invoice numbers.
+model Counter {
+  tenantId String   @db.Uuid
+  key      String
+  period   DateTime @db.Date
+  value    Int
+
+  @@id([tenantId, key])
+  @@map("counters")
+}
+
+model MenuCategory {
+  id        String     @id @default(uuid()) @db.Uuid
+  tenantId  String     @db.Uuid
+  name      String
+  nameMl    String?
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     MenuItem[]
+
+  @@index([tenantId])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String        @id @default(uuid()) @db.Uuid
+  tenantId    String        @db.Uuid
+  categoryId  String        @db.Uuid
+  name        String
+  nameMl      String?
+  description String?
+  /// Price before GST, in paise.
+  pricePaise  Int
+  /// GST rate in basis points (500 = 5%).
+  taxRateBps  Int           @default(500)
+  isVeg       Boolean       @default(true)
+  isAvailable Boolean       @default(true)
+  imageUrl    String?
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+  category    MenuCategory  @relation(fields: [categoryId], references: [id])
+  variants    MenuVariant[]
+  addons      MenuAddon[]
+
+  @@index([tenantId, categoryId])
+  @@map("menu_items")
+}
+
+/// A variant replaces the item's base price (e.g. Half / Full).
+model MenuVariant {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  itemId     String   @db.Uuid
+  name       String
+  pricePaise Int
+  item       MenuItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_variants")
+}
+
+/// An add-on is charged on top (e.g. Extra raita).
+model MenuAddon {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  itemId     String   @db.Uuid
+  name       String
+  pricePaise Int
+  item       MenuItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_addons")
+}
+
+model DiningTable {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @db.Uuid
+  branchId           String?  @db.Uuid
+  code               String
+  seats              Int      @default(4)
+  /// Printed in the table's QR code. Unguessable; rotating it invalidates old stickers.
+  qrToken            String   @unique
+  assignedEmployeeId String?  @db.Uuid
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@map("dining_tables")
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+}
+
+enum OrderSource {
+  QR
+  WAITER
+  POS
+}
+
+enum OrderStatus {
+  PLACED
+  ACCEPTED
+  PREPARING
+  READY
+  SERVED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentState {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+}
+
+model Order {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @db.Uuid
+  branchId       String?      @db.Uuid
+  serviceDate    DateTime     @db.Date
+  number         Int
+  label          String
+  type           OrderType    @default(DINE_IN)
+  source         OrderSource
+  status         OrderStatus  @default(PLACED)
+  paymentStatus  PaymentState @default(UNPAID)
+  tableId        String?      @db.Uuid
+  tableCode      String?
+  customerName   String?
+  customerPhone  String?
+  notes          String?
+  subtotalPaise  Int
+  discountPaise  Int          @default(0)
+  taxPaise       Int
+  totalPaise     Int
+  invoiceNumber  String?
+  /// Client-supplied key: retrying the same submit never creates a second order.
+  idempotencyKey String?
+  /// Append-only list of { status, at, by }.
+  history        Json         @default("[]")
+  placedById     String?      @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  items          OrderItem[]
+  payments       Payment[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, serviceDate, number])
+  @@index([tenantId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  orderId        String   @db.Uuid
+  menuItemId     String   @db.Uuid
+  /// Snapshots: later menu edits never change a placed order.
+  name           String
+  variantName    String?
+  addons         Json     @default("[]")
+  unitPricePaise Int
+  quantity       Int
+  taxRateBps     Int
+  lineTotalPaise Int
+  notes          String?
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @db.Uuid
+  orderId      String        @db.Uuid
+  method       PaymentMethod
+  amountPaise  Int
+  reference    String?
+  refundedAt   DateTime?
+  receivedById String?       @db.Uuid
+  createdAt    DateTime      @default(now())
+  order        Order         @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("payments")
+}
+
+enum TicketStatus {
+  NEW
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+/// Kitchen module's own copy of what to cook. Created from order.created or manually.
+model KitchenTicket {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @db.Uuid
+  orderId    String?      @db.Uuid
+  label      String
+  tableCode  String?
+  orderType  String?
+  items      Json
+  status     TicketStatus @default(NEW)
+  createdAt  DateTime     @default(now())
+  startedAt  DateTime?
+  readyAt    DateTime?
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([tenantId, orderId])
+  @@index([tenantId, status])
+  @@map("kitchen_tickets")
+}
+
+enum ServiceRequestType {
+  WAITER
+  BILL
+  WATER
+}
+
+model ServiceRequest {
+  id         String             @id @default(uuid()) @db.Uuid
+  tenantId   String             @db.Uuid
+  tableId    String             @db.Uuid
+  tableCode  String
+  type       ServiceRequestType
+  resolvedAt DateTime?
+  createdAt  DateTime           @default(now())
+
+  @@index([tenantId, resolvedAt])
+  @@map("service_requests")
+}

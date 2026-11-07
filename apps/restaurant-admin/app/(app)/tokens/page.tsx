@@ -2,6 +2,7 @@
 
 import { Badge, Button, Card, Empty, ErrorBanner, Field, formatDateTime, Input, Loading, PageHeader, Select, Toggle, useAction, useLoad } from '@xeva/ui';
 import { useEffect, useState, type FormEvent } from 'react';
+import { CUSTOMER_URL } from '../shared';
 import { useTenant } from '../tenant';
 
 interface Queue { id: string; name: string; prefix: string; isActive: boolean; averageServiceMinutes: number; today: Record<string, number> }
@@ -27,8 +28,6 @@ interface Board {
 interface Report { issued: number; byStatus: Record<string, number>; averageWaitMinutes: number | null }
 type Call = <T>(path: string, opts?: { method?: 'POST' | 'PATCH'; body?: unknown }) => Promise<T>;
 
-// Customer-facing app (queue display + remote joining). Set NEXT_PUBLIC_CUSTOMER_URL in production.
-const CUSTOMER_URL = process.env.NEXT_PUBLIC_CUSTOMER_URL ?? 'http://localhost:3010';
 const REFRESH_MS = 5000;
 
 export default function TokensPage() {

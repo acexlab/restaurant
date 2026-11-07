@@ -1,7 +1,9 @@
 import { Body, Controller, Get, HttpStatus, Ip, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { httpError, indianMobile, parse } from '../../common/http';
+import { indianMobile, parse } from '../../common/http';
+import { notFound, publicTenant, rateLimit, withPublicTenant } from '../../common/public';
+
 import { Public } from '../../core/identity/auth.guards';
 import { isFeatureEnabled } from '../../module-registry/module-registry.service';
 import { PrismaService, Tx } from '../../prisma/prisma.service';
@@ -13,14 +15,6 @@ const JoinSchema = z.object({
   partySize: z.number().int().min(1).max(20).optional(),
 });
 
-// shortcut: per-process, in-memory limit (5 joins / minute / IP). Move to Redis once the API runs on more than one instance.
-const joins = new Map<string, number[]>();
-function rateLimit(key: string, max = 5, windowMs = 60_000) {
-  const now = Date.now();
-  const recent = (joins.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (recent.length >= max) throw httpError(HttpStatus.TOO_MANY_REQUESTS, 'RATE_LIMITED', 'Too many attempts. Please wait a minute.');
-  joins.set(key, [...recent, now]);
-}
 
 /**
  * Customer-facing token endpoints (no login). Restaurant is resolved from its public slug.
@@ -124,21 +118,13 @@ export class PublicTokenController {
     });
   }
 
-  private async tenant(slug: string) {
-    const tenant = await this.prisma.tenant.findUnique({ where: { slug } });
-    if (!tenant || tenant.status !== 'ACTIVE' || tenant.deletedAt) throw notFound();
-    return tenant;
+  private tenant(slug: string) {
+    return publicTenant(this.prisma, slug);
   }
 
   /** Runs fn in the restaurant's RLS context, only if Digital Token is active there. */
-  private async inTenant<T>(slug: string, fn: (tx: Tx, tenantId: string, today: string) => Promise<T>) {
-    const tenant = await this.tenant(slug);
-    const today = await this.tokens.today(tenant.id);
-    return this.prisma.withTenant({ tenantId: tenant.id }, async (tx) => {
-      const inst = await tx.moduleInstallation.findUnique({ where: { tenantId_moduleId: { tenantId: tenant.id, moduleId: MODULE_ID } } });
-      if (inst?.status !== 'ACTIVE') throw notFound();
-      return fn(tx, tenant.id, today);
-    });
+  private inTenant<T>(slug: string, fn: (tx: Tx, tenantId: string, today: string) => Promise<T>) {
+    return withPublicTenant(this.prisma, slug, [MODULE_ID], (tx, tenant, { today }) => fn(tx, tenant.id, today));
   }
 
   private async activeQueue(tx: Tx, tenantId: string, queueId: string) {
@@ -147,6 +133,3 @@ export class PublicTokenController {
     return queue;
   }
 }
-
-// One answer for "no such restaurant / product off / queue closed": nothing to probe.
-const notFound = () => httpError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found');

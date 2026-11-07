@@ -54,7 +54,7 @@ export class ModuleRegistryController {
     const active = new Set(await this.registry.activeModuleIds(ctx));
     return NAVIGATION.filter(
       (item) =>
-        (!item.moduleId || active.has(item.moduleId)) &&
+        (!item.moduleId || ([] as string[]).concat(item.moduleId).some((m) => active.has(m))) &&
         (!item.permission || hasPermission(ctx.permissions, item.permission)),
     ).map(({ key, label, path }) => ({ key, label, path }));
   }

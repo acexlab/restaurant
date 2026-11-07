@@ -28,6 +28,10 @@ export default function RestaurantHome() {
       <h1 className="text-2xl font-semibold text-stone-900">{restaurant?.name ?? ' '}</h1>
       {restaurant?.branding?.tagline && <p className="text-stone-500">{restaurant.branding.tagline}</p>}
 
+      <Link href={`/${slug}/menu`} className="mt-6 flex min-h-11 items-center justify-center rounded-md border border-stone-300 bg-white font-medium text-stone-800 hover:bg-stone-50">
+        View menu
+      </Link>
+
       <section className="mt-6 space-y-3">
         {queues.data?.length === 0 && <p className="text-sm text-stone-500">Nothing to do online here yet. Please speak to our staff.</p>}
         {queues.data?.map((q) => (
